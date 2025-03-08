@@ -77,7 +77,17 @@ class FigmaApiService {
     this.validateClient();
     try {
       const response = await this.apiClient.get(`/files/${fileKey}/styles`);
-      return response.data;
+      const styles = response.data.meta.styles;
+      
+      // Extract all style keys (IDs)
+      const styleIds = styles.map(style => style.node_id);
+      const nodesResponse = await this.getNodes(fileKey, styleIds);
+      
+      return {
+        styles,
+        nodes: nodesResponse.nodes
+      };
+      
     } catch (error) {
       console.error('Error fetching Figma styles:', error);
       throw error;
@@ -273,6 +283,10 @@ class FigmaApiService {
       throw error;
     }
   }
+
+
 }
+
+
 
 module.exports = new FigmaApiService();

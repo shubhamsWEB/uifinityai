@@ -4,7 +4,7 @@ import { Footer } from '@/components/layout/footer';
 import { ThemeProvider } from '@/providers/theme-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { ToastProvider } from '@/providers/toast-provider';
-// import './globals.css';
+import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 

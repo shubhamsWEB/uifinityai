@@ -9,5 +9,13 @@ module.exports = {
       clientId: process.env.FIGMA_CLIENT_ID,
       clientSecret: process.env.FIGMA_CLIENT_SECRET,
       redirectUri: process.env.FIGMA_REDIRECT_URI
+    },
+    email: {
+      host: process.env.EMAIL_HOST || 'smtp.mailtrap.io',
+      port: process.env.EMAIL_PORT || 2525,
+      user: process.env.EMAIL_USER,
+      password: process.env.EMAIL_PASSWORD,
+      fromEmail: process.env.EMAIL_FROM || 'noreply@figmaaiui.com',
+      fromName: process.env.EMAIL_FROM_NAME || 'Figma AI UI'
     }
   };

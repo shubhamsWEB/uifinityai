@@ -1,3 +1,4 @@
+'use client'
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { 
@@ -8,15 +9,41 @@ import {
   Cpu,
   FileCode
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function HomePage() {
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      // Calculate percentage across the screen (0-100)
+      const x = Math.round((e.clientX / window.innerWidth) * 100);
+      const y = Math.round((e.clientY / window.innerHeight) * 100);
+      setMousePosition({ x, y });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  // Dynamic gradient style based on mouse position
+  const gradientStyle = {
+    backgroundImage: `linear-gradient(${mousePosition.x}deg, #00c6fb, #005bea)`,
+    transition: 'background-image 0.1s ease-out'
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
-      <section className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center bg-gradient-to-b from-white to-gray-100">
-        <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">
-          Generate UI from <span className="text-blue-600">Figma</span> with AI
+      <section 
+        className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center"
+        style={gradientStyle}
+      >
+        <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 text-white">
+          Generate UI from <span className="text-blue-200">Figma</span> with AI
         </h1>
-        <p className="text-xl text-gray-600 max-w-2xl mb-8">
+        <p className="text-xl text-white/90 max-w-2xl mb-8">
           Upload your Figma design system, describe what you want to build, and let AI generate pixel-perfect React components that match your design.
         </p>
         <div className="flex flex-col sm:flex-row gap-4">

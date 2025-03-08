@@ -36,34 +36,42 @@ const extractDesignSystem = asyncHandler(async (req, res) => {
   
   // Extract design tokens
   console.log('Extracting design tokens...');
-  const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
-  
-  // Extract components
-  console.log('Extracting components...');
-  const componentData = await componentExtractor.extractComponents(fileKey);
-  
-  // Combine all data into a design system object
-  const designSystem = {
-    name: designSystemName,
-    description: fileInfo.description || '',
-    figmaFileKey: fileKey,
-    tokens: designTokens,
-    components: componentData.components,
-    componentSets: componentData.componentSets,
-    componentPreviews: componentData.componentPreviews,
-  };
-  
-  console.log('Design system extraction complete!');
-  console.log(`- ${Object.keys(designTokens.colors).length} color tokens`);
-  console.log(`- ${Object.keys(designTokens.typography).length} typography tokens`);
-  console.log(`- ${Object.keys(designTokens.spacing).length} spacing tokens`);
-  console.log(`- ${Object.keys(designSystem.components).length} components`);
-  console.log(`- ${Object.keys(designSystem.componentSets).length} component sets`);
-  
-  res.status(200).json({
-    success: true,
-    designSystem
-  });
+  try {
+    const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
+    
+    // Extract components
+    console.log('Extracting components...');
+    const componentData = await componentExtractor.extractComponents(fileKey);
+    
+    // Combine all data into a design system object
+    const designSystem = {
+      name: designSystemName,
+      description: fileInfo.description || '',
+      figmaFileKey: fileKey,
+      tokens: designTokens,
+      components: componentData.components,
+      componentSets: componentData.componentSets,
+      componentPreviews: componentData.componentPreviews,
+    };
+    
+    console.log('Design system extraction complete!');
+    console.log(`- ${Object.keys(designTokens.colors || {}).length} color tokens`);
+    console.log(`- ${Object.keys(designTokens.typography || {}).length} typography tokens`);
+    console.log(`- ${Object.keys(designTokens.spacing || {}).length} spacing tokens`);
+    console.log(`- ${Object.keys(designSystem.components || {}).length} components`);
+    console.log(`- ${Object.keys(designSystem.componentSets || {}).length} component sets`);
+    
+    res.status(200).json({
+      success: true,
+      designSystem
+    });
+  } catch (error) {
+    console.error('Error extracting design system:', error);
+    res.status(500).json({
+      success: false,
+      error: `Failed to extract design system: ${error.message}`
+    });
+  }
 });
 
 /**
@@ -107,34 +115,53 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
   const fileInfo = await figmaApiService.getFile(fileKey);
   const designSystemName = fileInfo.name || 'Design System';
   
-  // Extract design tokens
-  const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
+  console.log(`Extracting design system from "${designSystemName}" (${fileKey})...`);
   
-  // Extract components
-  const componentData = await componentExtractor.extractComponents(fileKey);
-  
-  // Combine all data into a design system object
-  const designSystem = {
-    name: designSystemName,
-    description: fileInfo.description || '',
-    figmaFileKey: fileKey,
-    tokens: designTokens,
-    components: componentData.components,
-    componentSets: componentData.componentSets,
-    componentPreviews: componentData.componentPreviews,
-  };
-  
-  // Save to database
-  const savedDesignSystem = await designSystemStore.saveDesignSystem(
-    designSystem,
-    userId,
-    organizationId
-  );
-  
-  res.status(200).json({
-    success: true,
-    designSystem: savedDesignSystem
-  });
+  try {
+    // Extract design tokens
+    console.log('Extracting design tokens...');
+    const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
+    
+    // Extract components
+    console.log('Extracting components...');
+    const componentData = await componentExtractor.extractComponents(fileKey);
+    
+    // Combine all data into a design system object
+    const designSystem = {
+      name: designSystemName,
+      description: fileInfo.description || '',
+      figmaFileKey: fileKey,
+      tokens: designTokens,
+      components: componentData.components,
+      componentSets: componentData.componentSets,
+      componentPreviews: componentData.componentPreviews,
+    };
+    
+    console.log('Design system extraction complete!');
+    console.log(`- ${Object.keys(designTokens.colors || {}).length} color tokens`);
+    console.log(`- ${Object.keys(designTokens.typography || {}).length} typography tokens`);
+    console.log(`- ${Object.keys(designTokens.spacing || {}).length} spacing tokens`);
+    console.log(`- ${Object.keys(designSystem.components || {}).length} components`);
+    console.log(`- ${Object.keys(designSystem.componentSets || {}).length} component sets`);
+    
+    // Save to database
+    const savedDesignSystem = await designSystemStore.saveDesignSystem(
+      designSystem,
+      userId,
+      organizationId
+    );
+    
+    res.status(200).json({
+      success: true,
+      designSystem: savedDesignSystem
+    });
+  } catch (error) {
+    console.error('Error extracting and saving design system:', error);
+    res.status(500).json({
+      success: false,
+      error: `Failed to extract and save design system: ${error.message}`
+    });
+  }
 });
 
 /**

@@ -8,23 +8,46 @@ class ComponentExtractor {
    */
   async extractComponents(fileKey) {
     try {
+      console.log('Extracting components from file:', fileKey);
+      
       // Get component data from Figma
       const componentsData = await figmaApiService.getFileComponents(fileKey);
-      const componentSetsData = await figmaApiService.getComponentSets(fileKey);
+      console.log('Found components:', componentsData.meta.components.length);
+      
+      let componentSetsData = { meta: { component_sets: [] } };
+      try {
+        componentSetsData = await figmaApiService.getComponentSets(fileKey);
+        console.log('Found component sets:', componentSetsData.meta.component_sets.length);
+      } catch (error) {
+        console.warn('Error fetching component sets:', error.message);
+      }
       
       // Get additional node data for components
       const componentIds = componentsData.meta.components.map(comp => comp.node_id);
       const componentSetIds = componentSetsData.meta.component_sets.map(set => set.node_id);
       
       const allNodeIds = [...componentIds, ...componentSetIds];
+      
+      if (allNodeIds.length === 0) {
+        console.log('No components or component sets found');
+        return {
+          components: {},
+          componentSets: {},
+          componentPreviews: {}
+        };
+      }
+      
+      console.log('Fetching node data for components...');
       const nodesData = await figmaApiService.getNodes(fileKey, allNodeIds);
       
       // Process components and component sets
+      console.log('Processing components...');
       const components = await this.processComponents(
         componentsData.meta.components,
         nodesData.nodes
       );
       
+      console.log('Processing component sets...');
       const componentSets = await this.processComponentSets(
         componentSetsData.meta.component_sets,
         nodesData.nodes,
@@ -32,7 +55,13 @@ class ComponentExtractor {
       );
       
       // Get image previews for components
+      console.log('Fetching component previews...');
       const componentPreviews = await this.getComponentPreviews(fileKey, componentIds);
+      
+      console.log('Component extraction complete:');
+      console.log(`- ${Object.keys(components).length} components`);
+      console.log(`- ${Object.keys(componentSets).length} component sets`);
+      console.log(`- ${Object.keys(componentPreviews).length} component previews`);
       
       return {
         components,
@@ -139,6 +168,11 @@ class ComponentExtractor {
    */
   async getComponentPreviews(fileKey, componentIds) {
     try {
+      // Only get previews if there are components
+      if (!componentIds || componentIds.length === 0) {
+        return {};
+      }
+      
       const imageData = await figmaApiService.getImages(fileKey, componentIds);
       
       const previews = {};

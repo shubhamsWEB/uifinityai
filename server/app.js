@@ -11,6 +11,9 @@ const mongoSanitize = require('express-mongo-sanitize');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const figmaRoutes = require('./routes/figmaRoutes');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const organizationRoutes = require('./routes/organizationRoutes');
 
 // Connect to database
 connectDB();
@@ -48,6 +51,9 @@ app.use('/api/', limiter);
 
 // Mount routers
 app.use('/api/figma', figmaRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/organizations', organizationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

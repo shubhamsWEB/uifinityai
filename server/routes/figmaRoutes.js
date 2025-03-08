@@ -9,7 +9,7 @@ const {
   deleteDesignSystem,
   exportDesignSystem,
   importDesignSystem,
-  authorizeFigma
+  authorizeFigma,
 } = require('../controllers/figmaController');
 
 const router = express.Router();
@@ -27,5 +27,6 @@ router.get('/design-systems/:id', protect, getDesignSystemById);
 router.delete('/design-systems/:id', protect, deleteDesignSystem);
 router.get('/export/:id', protect, exportDesignSystem);
 router.post('/import', protect, importDesignSystem);
+
 
 module.exports = router;

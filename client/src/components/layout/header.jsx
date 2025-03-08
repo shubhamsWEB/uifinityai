@@ -30,7 +30,7 @@ export function Header() {
   
   const navigation = [
     { name: 'Home', href: '/' },
-    { name: 'Design Systems', href: '/design-system' },
+    { name: 'Design Systems', href: '/design-systems' },
     { name: 'Documentation', href: '/docs' },
   ];
   
@@ -46,7 +46,7 @@ export function Header() {
                 <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
                 <path d="M7 13l3 3 7-7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               </svg>
-              <span className="ml-2 text-xl font-bold text-gray-900">Figma AI UI</span>
+              <span className="ml-2 text-xl font-bold text-gray-900">UiFinity AI</span>
             </Link>
             
             <nav className="hidden md:ml-8 md:flex md:space-x-8">
@@ -71,9 +71,11 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-8 w-8 bg-gray-200">
                       <AvatarImage src="/images/avatar.png" alt={user?.name} />
-                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                      <AvatarFallback>
+                        {user?.name ? user.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'UI'}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -104,10 +106,28 @@ export function Header() {
             ) : (
               <div className="flex items-center space-x-4">
                 <Link href="/auth/login">
-                  <Button variant="ghost">Login</Button>
+                  <Button 
+                    variant="ghost" 
+                    className="text-white hover:opacity-90 transition-opacity"
+                    style={{ 
+                      background: "linear-gradient(135deg, #00c6fb 0%, #005bea 100%)",
+                      boxShadow: "0 4px 6px rgba(0, 91, 234, 0.2)"
+                    }}
+                  >
+                    Login
+                  </Button>
                 </Link>
                 <Link href="/auth/register">
-                  <Button>Sign up</Button>
+                  <Button 
+                    variant="ghost" 
+                    className="text-white hover:opacity-90 transition-opacity"
+                    style={{ 
+                      background: "linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)",
+                      boxShadow: "0 4px 6px rgba(37, 117, 252, 0.2)"
+                    }}
+                  >
+                    Sign up
+                  </Button>
                 </Link>
               </div>
             )}
