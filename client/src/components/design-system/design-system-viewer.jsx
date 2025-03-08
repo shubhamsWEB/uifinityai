@@ -33,38 +33,49 @@ export function DesignSystemViewer({ designSystem }) {
   const { tokens, components, componentSets } = designSystem;
   
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>{designSystem.name}</CardTitle>
-        <CardDescription>
-          {designSystem.description || 'Design system tokens and components'}
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent>
+    <div className="w-full bg-slate-50/50 rounded-lg">
+      <div>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="colors" className="flex items-center">
+          <TabsList className="mb-4 bg-muted/60 p-1 rounded-lg shadow-sm w-full justify-between">
+            <TabsTrigger 
+              value="colors" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-100 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <PaletteIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Colors</span>
             </TabsTrigger>
-            <TabsTrigger value="typography" className="flex items-center">
+            <TabsTrigger 
+              value="typography" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <TypeIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Typography</span>
             </TabsTrigger>
-            <TabsTrigger value="spacing" className="flex items-center">
+            <TabsTrigger 
+              value="spacing" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <BoxIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Spacing</span>
             </TabsTrigger>
-            <TabsTrigger value="shadows" className="flex items-center">
+            <TabsTrigger 
+              value="shadows" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <CloudLightningIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Shadows</span>
             </TabsTrigger>
-            <TabsTrigger value="borders" className="flex items-center">
+            <TabsTrigger 
+              value="borders" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <SquareIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Borders</span>
             </TabsTrigger>
-            <TabsTrigger value="components" className="flex items-center">
+            <TabsTrigger 
+              value="components" 
+              className="flex items-center data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-50 data-[state=active]:to-indigo-50 data-[state=active]:shadow-sm data-[state=active]:font-medium"
+            >
               <ComponentIcon className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Components</span>
             </TabsTrigger>
@@ -100,7 +111,7 @@ export function DesignSystemViewer({ designSystem }) {
             </TabsContent>
           </ScrollArea>
         </Tabs>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

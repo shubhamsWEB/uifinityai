@@ -10,7 +10,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  FileUp
+  ArrowLeft
 } from 'lucide-react';
 import {
   getDesignSystems,
@@ -20,6 +20,7 @@ import {
 } from '@/lib/api/figma';
 import { useToast } from '@/lib/hooks/use-toast';
 import { useAuth } from '@/providers/auth-provider';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function DesignSystemPage() {
   const [designSystems, setDesignSystems] = useState([]);
@@ -159,6 +160,15 @@ export default function DesignSystemPage() {
     setShowUploader(false);
   };
 
+  // Add this CSS class somewhere in your component
+  const truncateStyles = {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+
   // If still checking authentication or not authenticated, show loading
   if (authLoading || !isAuthenticated) {
     return (
@@ -169,84 +179,178 @@ export default function DesignSystemPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f5f5f5] to-[#e0e0e0]">
-      <div className="container mx-auto py-12 px-4 max-w-3xl">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Design Systems</h1>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={fetchDesignSystems}
-              disabled={loading}
-              size="sm"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              <span className="ml-2 hidden sm:inline">Refresh</span>
-            </Button>
-            <Button
-              onClick={() => setShowUploader(true)}
-              disabled={loading}
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              <span>New Design System</span>
-            </Button>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 px-4">
+        <header className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <h1 className="text-3xl font-bold text-foreground">Design Systems</h1>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={fetchDesignSystems}
+                disabled={loading}
+                size="sm"
+                aria-label="Refresh design systems"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="ml-2 hidden sm:inline">Refresh</span>
+              </Button>
+              <Button
+                onClick={() => setShowUploader(true)}
+                disabled={loading}
+                size="sm"
+                aria-label="Create new design system"
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:from-blue-600 hover:to-indigo-600"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span>New Design System</span>
+              </Button>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
-          {showUploader || designSystems.length === 0 ? (
-            <DesignSystemUploader onUploadComplete={handleUploadComplete} />
-          ) : (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-800">
-                  {activeDesignSystem?.name || "Select a Design System"}
-                </h2>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowUploader(true)}
-                  size="sm"
-                >
-                  Upload New
-                </Button>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sidebar with design system list */}
+          <aside className="lg:col-span-3">
+            <div className="bg-card rounded-lg shadow-sm border p-4">
+              <h2 className="text-lg font-medium mb-4">Your Design Systems</h2>
               
-              {activeDesignSystem ? (
-                <DesignSystemViewer designSystem={activeDesignSystem} />
-              ) : (
-                <div className="text-center p-10">
-                  <p className="text-gray-500">Select a design system to view</p>
+              {loading && designSystems.length === 0 ? (
+                <div className="flex items-center justify-center h-40">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              )}
-              
-              <div className="mt-8">
-                <h3 className="text-lg font-medium mb-4 text-gray-700">Your Design Systems</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {loading ? (
-                    <div className="flex items-center justify-center h-40 col-span-full">
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                    </div>
-                  ) : (
-                    designSystems.map(ds => (
-                      <DesignSystemCard
+              ) : designSystems.length === 0 ? (
+                <div className="text-center p-6 bg-muted/50 rounded-md">
+                  <p className="text-muted-foreground">No design systems yet</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-4"
+                    onClick={() => setShowUploader(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create your first
+                  </Button>
+                </div>
+              ) : (
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <div className="space-y-3">
+                    {designSystems.map(ds => (
+                      <button
                         key={ds._id}
-                        designSystem={ds}
-                        isActive={activeDesignSystem && activeDesignSystem._id === ds._id}
-                        onView={() => handleViewDesignSystem(ds._id)}
-                        onExport={() => handleExportDesignSystem(ds._id)}
-                        onDelete={() => handleDeleteDesignSystem(ds._id)}
-                      />
-                    ))
+                        onClick={() => handleViewDesignSystem(ds._id)}
+                        className={`w-full text-left p-2 rounded-md transition-colors ${
+                          activeDesignSystem && activeDesignSystem._id === ds._id
+                            ? 'bg-gradient-to-r from-blue-200 to-indigo-50 border'
+                            : 'bg-card hover:bg-accent border border-border'
+                        }`}
+                        aria-current={activeDesignSystem && activeDesignSystem._id === ds._id ? 'page' : undefined}
+                      >
+                        <h3 
+                          className="font-medium" 
+                          style={truncateStyles} 
+                          title={ds.name}
+                        >
+                          {ds.name}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+                            {Object.keys(ds.tokens?.colors || {}).length} colors
+                          </span>
+                          <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs">
+                            {ds.components?.length || 0} components
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </aside>
+
+          {/* Main content area */}
+          <main className="lg:col-span-9">
+            <div className="bg-card rounded-lg shadow-sm border p-6">
+              {showUploader || designSystems.length === 0 ? (
+                <div>
+                  {showUploader && designSystems.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="mb-4"
+                      onClick={() => setShowUploader(false)}
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to design systems
+                    </Button>
+                  )}
+                  <DesignSystemUploader onUploadComplete={handleUploadComplete} />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {activeDesignSystem ? (
+                    <>
+                      <div className="flex justify-between items-center gap-4">
+                        <div>
+                          <h2 
+                            className="text-2xl font-semibold text-foreground"
+                            style={truncateStyles}
+                            title={activeDesignSystem.name}
+                          >
+                            {activeDesignSystem.name}
+                          </h2>
+                          {activeDesignSystem.description && (
+                            <p 
+                              className="text-muted-foreground mt-1"
+                              style={truncateStyles}
+                              title={activeDesignSystem.description}
+                            >
+                              {activeDesignSystem.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportDesignSystem(activeDesignSystem._id)}
+                          >
+                            Export
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteDesignSystem(activeDesignSystem._id)}
+                          >
+                            Delete
+                          </Button>
+                          {/* <Button
+                            variant="outline"
+                            onClick={() => setShowUploader(true)}
+                            size="sm"
+                          >
+                            Upload New
+                          </Button> */}
+                        </div>
+                      </div>
+                      
+                      <DesignSystemViewer designSystem={activeDesignSystem} />
+                    </>
+                  ) : (
+                    <div className="text-center p-10">
+                      <p className="text-muted-foreground">Select a design system to view</p>
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </main>
         </div>
       </div>
     </div>
