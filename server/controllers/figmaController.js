@@ -13,7 +13,59 @@ const User = require('../models/User');
  * @param {string} token - The Figma API token
  */
 const initializeFigmaApi = (token) => {
-  figmaApiService.initializeWithPersonalToken(token);
+  try {
+    console.log('Initializing Figma API with token');
+    figmaApiService.initializeWithPersonalToken(token);
+    console.log('Figma API initialized successfully');
+  } catch (error) {
+    console.error('Error initializing Figma API:', error);
+    throw new Error(`Failed to initialize Figma API: ${error.message}`);
+  }
+};
+
+/**
+ * Validate and ensure the Figma API is initialized
+ * @param {string} userId - The user ID
+ * @returns {Promise<boolean>} Success status
+ */
+const ensureFigmaApiInitialized = async (userId) => {
+  // Check if API is already initialized
+  let isInitialized = false;
+  
+  try {
+    // Simple test to check if apiClient exists and is valid
+    if (figmaApiService.apiClient) {
+      // Try a simple request to verify token is working
+      await figmaApiService.getUser();
+      isInitialized = true;
+      console.log('Figma API is already initialized and token is valid');
+    }
+  } catch (error) {
+    console.log('Figma API not initialized or token is invalid, will try to initialize');
+    isInitialized = false;
+  }
+  
+  if (!isInitialized) {
+    try {
+      // Get the user's token from the database
+      const user = await User.findById(userId).select('+figmaTokens.personalAccessToken');
+      
+      if (!user || !user.figmaTokens || !user.figmaTokens.personalAccessToken) {
+        console.error('No Figma token found for user');
+        return false;
+      }
+      
+      // Initialize the API with the user's token
+      initializeFigmaApi(user.figmaTokens.personalAccessToken);
+      console.log('Successfully initialized Figma API with stored token');
+      return true;
+    } catch (error) {
+      console.error('Error initializing Figma API with stored token:', error);
+      return false;
+    }
+  }
+  
+  return isInitialized;
 };
 
 /**
@@ -24,34 +76,36 @@ const initializeFigmaApi = (token) => {
 const extractDesignSystem = asyncHandler(async (req, res) => {
   const { fileKey } = req.body;
   
-  // Validate API is initialized
-  if (!figmaApiService.apiClient) {
-    // Try to get the user's token from the database
-    const user = await User.findById(req.user.id).select('+figmaTokens.personalAccessToken');
-    
-    if (!user || !user.figmaTokens || !user.figmaTokens.personalAccessToken) {
-      return res.status(400).json({
-        success: false,
-        error: 'Figma API not initialized. Please provide your Figma token first.'
-      });
-    }
-    
-    // Initialize the API with the user's token
-    initializeFigmaApi(user.figmaTokens.personalAccessToken);
+  if (!fileKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'File key is required'
+    });
   }
   
-  // Get file information
-  const fileInfo = await figmaApiService.getFile(fileKey);
-  const designSystemName = fileInfo.name || 'Design System';
+  // Ensure API is initialized
+  const apiInitialized = await ensureFigmaApiInitialized(req.user.id);
   
-  console.log(`Extracting design system from "${designSystemName}" (${fileKey})...`);
+  if (!apiInitialized) {
+    return res.status(400).json({
+      success: false,
+      error: 'Figma API not initialized. Please provide your Figma token first.'
+    });
+  }
   
-  // Extract design tokens
-  console.log('Extracting design tokens...');
   try {
+    // Get file information
+    console.log(`Getting file information for: ${fileKey}`);
+    const fileInfo = await figmaApiService.getFile(fileKey);
+    const designSystemName = fileInfo.name || 'Design System';
+    
+    console.log(`Extracting design system from "${designSystemName}" (${fileKey})...`);
+    
+    // Extract design tokens
+    console.log('Extracting design tokens...');
     const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
     
-    // Extract components
+    // Extract components with improved error handling
     console.log('Extracting components...');
     const componentData = await componentExtractor.extractComponents(fileKey);
     
@@ -61,9 +115,9 @@ const extractDesignSystem = asyncHandler(async (req, res) => {
       description: fileInfo.description || '',
       figmaFileKey: fileKey,
       tokens: designTokens,
-      components: componentData.components,
-      componentSets: componentData.componentSets,
-      componentPreviews: componentData.componentPreviews,
+      components: componentData.components || {},
+      componentSets: componentData.componentSets || {},
+      componentPreviews: componentData.componentPreviews || {},
     };
     
     console.log('Design system extraction complete!');
@@ -96,16 +150,24 @@ const saveDesignSystem = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const organizationId = req.user.organizationId || null;
   
-  const savedDesignSystem = await designSystemStore.saveDesignSystem(
-    designSystem,
-    userId,
-    organizationId
-  );
-  
-  res.status(200).json({
-    success: true,
-    designSystem: savedDesignSystem
-  });
+  try {
+    const savedDesignSystem = await designSystemStore.saveDesignSystem(
+      designSystem,
+      userId,
+      organizationId
+    );
+    
+    res.status(200).json({
+      success: true,
+      designSystem: savedDesignSystem
+    });
+  } catch (error) {
+    console.error('Error saving design system:', error);
+    res.status(500).json({
+      success: false,
+      error: `Failed to save design system: ${error.message}`
+    });
+  }
 });
 
 /**
@@ -118,36 +180,50 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const organizationId = req.user.organizationId || null;
   
-  // Validate API is initialized
-  if (!figmaApiService.apiClient) {
-    // Try to get the user's token from the database
-    const user = await User.findById(req.user.id).select('+figmaTokens.personalAccessToken');
-    
-    if (!user || !user.figmaTokens || !user.figmaTokens.personalAccessToken) {
-      return res.status(400).json({
-        success: false,
-        error: 'Figma API not initialized. Please provide your Figma token first.'
-      });
-    }
-    
-    // Initialize the API with the user's token
-    initializeFigmaApi(user.figmaTokens.personalAccessToken);
+  if (!fileKey) {
+    return res.status(400).json({
+      success: false,
+      error: 'File key is required'
+    });
   }
   
-  // Get file information
-  const fileInfo = await figmaApiService.getFile(fileKey);
-  const designSystemName = fileInfo.name || 'Design System';
+  // Ensure API is initialized
+  const apiInitialized = await ensureFigmaApiInitialized(req.user.id);
   
-  console.log(`Extracting design system from "${designSystemName}" (${fileKey})...`);
+  if (!apiInitialized) {
+    return res.status(400).json({
+      success: false,
+      error: 'Figma API not initialized. Please provide your Figma token first.'
+    });
+  }
   
   try {
-    // Extract design tokens
-    console.log('Extracting design tokens...');
-    const designTokens = await tokenExtractor.extractDesignTokens(fileKey);
+    // Get file information
+    console.log(`Getting file information for: ${fileKey}`);
+    const fileInfo = await figmaApiService.getFile(fileKey);
+    const designSystemName = fileInfo.name || 'Design System';
     
-    // Extract components
+    console.log(`Extracting design system from "${designSystemName}" (${fileKey})...`);
+    
+    // Extract design tokens with robust error handling
+    console.log('Extracting design tokens...');
+    let designTokens = { colors: {}, typography: {}, spacing: {}, shadows: {}, borders: {} };
+    try {
+      designTokens = await tokenExtractor.extractDesignTokens(fileKey);
+    } catch (tokenError) {
+      console.error('Error extracting design tokens:', tokenError);
+      // Continue with empty tokens instead of failing the whole process
+    }
+    
+    // Extract components with robust error handling
     console.log('Extracting components...');
-    const componentData = await componentExtractor.extractComponents(fileKey);
+    let componentData = { components: {}, componentSets: {}, componentPreviews: {} };
+    try {
+      componentData = await componentExtractor.extractComponents(fileKey);
+    } catch (componentError) {
+      console.error('Error extracting components:', componentError);
+      // Continue with empty components instead of failing the whole process
+    }
     
     // Combine all data into a design system object
     const designSystem = {
@@ -155,9 +231,9 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
       description: fileInfo.description || '',
       figmaFileKey: fileKey,
       tokens: designTokens,
-      components: componentData.components,
-      componentSets: componentData.componentSets,
-      componentPreviews: componentData.componentPreviews,
+      components: componentData.components || {},
+      componentSets: componentData.componentSets || {},
+      componentPreviews: componentData.componentPreviews || {},
     };
     
     console.log('Design system extraction complete!');
@@ -168,6 +244,7 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
     console.log(`- ${Object.keys(designSystem.componentSets || {}).length} component sets`);
     
     // Save to database
+    console.log('Saving design system to database...');
     const savedDesignSystem = await designSystemStore.saveDesignSystem(
       designSystem,
       userId,
@@ -340,10 +417,10 @@ const authorizeFigma = asyncHandler(async (req, res) => {
   }
   
   // Initialize the Figma API with the token
-  initializeFigmaApi(token);
-  
-  // Verify the token works by making a test request
   try {
+    initializeFigmaApi(token);
+    
+    // Verify the token works by making a test request
     const user = await figmaApiService.getUser();
     
     // Update user with new token
@@ -363,9 +440,10 @@ const authorizeFigma = asyncHandler(async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error authorizing with Figma:', error);
     return res.status(401).json({
       success: false,
-      error: 'Invalid Figma token'
+      error: `Invalid Figma token: ${error.message}`
     });
   }
 });

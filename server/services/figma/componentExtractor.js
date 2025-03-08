@@ -1,3 +1,4 @@
+// server/services/figma/componentExtractor.js
 const figmaApiService = require('./apiService');
 
 class ComponentExtractor {
@@ -10,21 +11,24 @@ class ComponentExtractor {
     try {
       console.log('Extracting components from file:', fileKey);
       
-      // Get component data from Figma
-      const componentsData = await figmaApiService.getFileComponents(fileKey);
-      console.log('Found components:', componentsData.meta.components.length);
+      // Step 1: Get file data to have the complete document structure
+      const fileData = await figmaApiService.getFile(fileKey);
+      console.log('File data retrieved:', fileData.name);
       
-      let componentSetsData = { meta: { component_sets: [] } };
+      // Step 2: Get component data from Figma
+      const componentsData = await figmaApiService.getFileComponents(fileKey);
+      console.log('Found components:', Object.keys(componentsData.meta.components).length);
+      
+      // Step 3: Get component sets data
       try {
-        componentSetsData = await figmaApiService.getComponentSets(fileKey);
-        console.log('Found component sets:', componentSetsData.meta.component_sets.length);
+        console.log('Found component sets:', Object.keys(componentsData.meta.component_sets).length);
       } catch (error) {
         console.warn('Error fetching component sets:', error.message);
       }
       
-      // Get additional node data for components
-      const componentIds = componentsData.meta.components.map(comp => comp.node_id);
-      const componentSetIds = componentSetsData.meta.component_sets.map(set => set.node_id);
+      // Step 4: Get additional node data for components and component sets
+      const componentIds = Object.keys(componentsData.meta.components);
+      const componentSetIds = Object.keys(componentsData.meta.component_sets);
       
       const allNodeIds = [...componentIds, ...componentSetIds];
       
@@ -37,24 +41,114 @@ class ComponentExtractor {
         };
       }
       
-      console.log('Fetching node data for components...');
-      const nodesData = await figmaApiService.getNodes(fileKey, allNodeIds);
+      console.log('Fetching node data for components and component sets...');
+      const nodesData = { nodes: {} };
       
-      // Process components and component sets
-      console.log('Processing components...');
-      const components = await this.processComponents(
-        componentsData.meta.components,
-        nodesData.nodes
-      );
+      // Process in chunks to avoid API limits
+      const maxIdsPerRequest = 100;
+      for (let i = 0; i < allNodeIds.length; i += maxIdsPerRequest) {
+        const chunk = allNodeIds.slice(i, i + maxIdsPerRequest);
+        try {
+          console.log(`Fetching data for ${chunk.length} nodes...`);
+          const chunkData = await figmaApiService.getNodes(fileKey, chunk);
+          if (chunkData && chunkData.nodes) {
+            Object.assign(nodesData.nodes, chunkData.nodes);
+          }
+        } catch (error) {
+          console.error(`Error fetching nodes chunk: ${error.message}`);
+        }
+      }
       
+      console.log(`Retrieved data for ${Object.keys(nodesData.nodes).length} nodes`);
+      
+      // Step 5: Process component sets first to establish the structure
       console.log('Processing component sets...');
-      const componentSets = await this.processComponentSets(
-        componentSetsData.meta.component_sets,
-        nodesData.nodes,
-        components
-      );
+      const componentSets = {};
+      for (const [nodeId, componentSet] of Object.entries(componentsData.meta.component_sets)) {
+        const nodeData = nodesData.nodes[nodeId];
+        
+        if (nodeData && nodeData.document) {
+          componentSets[nodeId] = {
+            id: nodeId,
+            name: componentSet.name,
+            description: componentSet.description || '',
+            key: componentSet.key,
+            components: [], // Will be populated later
+            variantProperties: {}, // Will be populated later
+            type: this.inferComponentTypeFromName(componentSet.name)
+          };
+        }
+      }
       
-      // Get image previews for components
+      // Step 6: Process components
+      console.log('Processing components...');
+      const components = {};
+      
+      // Map to organize components by their component set
+      const componentsBySetId = {};
+      
+      for (const [nodeId, component] of Object.entries(componentsData.meta.components)) {
+        const nodeData = nodesData.nodes[nodeId];
+        
+        if (!nodeData || !nodeData.document) {
+          console.log(`Missing node data for component: ${component.name}`);
+          continue;
+        }
+        
+        const node = nodeData.document;
+        
+        // Important: Use the componentSetId property from the API response
+        const componentSetId = component.componentSetId || null;
+        
+        // Extract variant properties from component name or other sources
+        const variantProperties = this.extractVariantProperties(component.name);
+        
+        // Store the component
+        components[nodeId] = {
+          id: nodeId,
+          name: component.name,
+          description: component.description || '',
+          key: component.key,
+          componentSetId: componentSetId,
+          properties: this.extractComponentProperties(node),
+          layout: this.extractLayoutProperties(node),
+          styles: this.extractStyleReferences(node),
+          size: node.absoluteBoundingBox ? {
+            width: node.absoluteBoundingBox.width,
+            height: node.absoluteBoundingBox.height
+          } : null,
+          variantProperties: variantProperties
+        };
+        
+        // Organize components by their component set
+        if (componentSetId) {
+          if (!componentsBySetId[componentSetId]) {
+            componentsBySetId[componentSetId] = [];
+          }
+          componentsBySetId[componentSetId].push(nodeId);
+        }
+      }
+      
+      // Step 7: Update component sets with their components
+      for (const [setId, componentIds] of Object.entries(componentsBySetId)) {
+        if (componentSets[setId]) {
+          // Add component IDs to the component set
+          componentSets[setId].components = componentIds;
+          
+          // Extract variant properties from all components in this set
+          const componentsInSet = componentIds.map(id => components[id]).filter(Boolean);
+          const variantProperties = this.extractComponentSetVariantProperties(componentsInSet);
+          componentSets[setId].variantProperties = variantProperties;
+          
+          // Update component type based on the variant properties and name
+          componentSets[setId].type = this.classifyComponentType(
+            componentSets[setId].name, 
+            variantProperties
+          );
+        }
+      }
+      
+      // Step 8: Get image previews for components
       console.log('Fetching component previews...');
       const componentPreviews = await this.getComponentPreviews(fileKey, componentIds);
       
@@ -70,115 +164,42 @@ class ComponentExtractor {
       };
     } catch (error) {
       console.error('Error extracting components:', error);
-      throw error;
+      // Return empty result instead of throwing to prevent cascading failures
+      return {
+        components: {},
+        componentSets: {},
+        componentPreviews: {}
+      };
     }
-  }
-
-  /**
-   * Process component data
-   * @param {Array} components - Array of components from Figma
-   * @param {Object} nodesData - Node data for the components
-   * @returns {Object} Processed components
-   */
-  async processComponents(components, nodesData) {
-    const processedComponents = {};
-    
-    for (const component of components) {
-      const nodeId = component.node_id;
-      const nodeData = nodesData[nodeId];
-      
-      if (nodeData) {
-        const node = nodeData.document;
-        
-        processedComponents[nodeId] = {
-          id: nodeId,
-          name: component.name,
-          description: component.description || '',
-          key: component.key,
-          componentSetId: component.containing_frame?.node_id,
-          // Extract properties from the component
-          properties: this.extractComponentProperties(node),
-          // Extract constraints and layout
-          layout: this.extractLayoutProperties(node),
-          // Extract styles
-          styles: this.extractStyleReferences(node),
-          // Extract size and constraints
-          size: node.absoluteBoundingBox ? {
-            width: node.absoluteBoundingBox.width,
-            height: node.absoluteBoundingBox.height
-          } : null,
-          // Extract variant properties if it's part of a component set
-          variantProperties: component.containing_frame ? 
-            this.extractVariantProperties(component.name) : null
-        };
-      }
-    }
-    
-    return processedComponents;
-  }
-
-  /**
-   * Process component set data
-   * @param {Array} componentSets - Array of component sets from Figma
-   * @param {Object} nodesData - Node data for the component sets
-   * @param {Object} components - Processed components data
-   * @returns {Object} Processed component sets
-   */
-  async processComponentSets(componentSets, nodesData, components) {
-    const processedComponentSets = {};
-    
-    for (const componentSet of componentSets) {
-      const nodeId = componentSet.node_id;
-      const nodeData = nodesData[nodeId];
-      
-      if (nodeData) {
-        const node = nodeData.document;
-        
-        // Find all components that belong to this component set
-        const childComponents = Object.values(components).filter(
-          comp => comp.componentSetId === nodeId
-        );
-        
-        // Extract variant properties
-        const variantProperties = this.extractComponentSetVariantProperties(childComponents);
-        
-        processedComponentSets[nodeId] = {
-          id: nodeId,
-          name: componentSet.name,
-          description: componentSet.description || '',
-          key: componentSet.key,
-          // Components in this set
-          components: childComponents.map(comp => comp.id),
-          // Variant properties (dimension names and values)
-          variantProperties,
-          // Component type classification
-          type: this.classifyComponentType(componentSet.name, variantProperties)
-        };
-      }
-    }
-    
-    return processedComponentSets;
   }
 
   /**
    * Get image previews for components
    * @param {string} fileKey - The Figma file key
    * @param {Array} componentIds - Array of component IDs
-   * @returns {Object} Map of component ID to image URL
+   * @returns {Promise<Object>} Map of component ID to image URL
    */
   async getComponentPreviews(fileKey, componentIds) {
     try {
-      // Only get previews if there are components
       if (!componentIds || componentIds.length === 0) {
         return {};
       }
       
-      const imageData = await figmaApiService.getImages(fileKey, componentIds);
-      
       const previews = {};
-      if (imageData.images) {
-        for (const [nodeId, imageUrl] of Object.entries(imageData.images)) {
-          previews[nodeId] = imageUrl;
+      
+      // Process in chunks to avoid API limits
+      const maxIdsPerRequest = 100;
+      for (let i = 0; i < componentIds.length; i += maxIdsPerRequest) {
+        const chunk = componentIds.slice(i, i + maxIdsPerRequest);
+        try {
+          console.log(`Fetching images for ${chunk.length} components...`);
+          const imageData = await figmaApiService.getImages(fileKey, chunk);
+          
+          if (imageData && imageData.images) {
+            Object.assign(previews, imageData.images);
+          }
+        } catch (error) {
+          console.error(`Error fetching images chunk: ${error.message}`);
         }
       }
       
@@ -188,239 +209,13 @@ class ComponentExtractor {
       return {};
     }
   }
-
-  /**
-   * Extract properties from a component
-   * @param {Object} node - The component node
-   * @returns {Object} The component properties
-   */
-  extractComponentProperties(node) {
-    const properties = {};
-    
-    // Extract text content if it's a text node
-    if (node.type === 'TEXT') {
-      properties.text = node.characters || '';
-      properties.textStyles = node.style || {};
-    }
-    
-    // Extract image properties if it's an image
-    if (node.type === 'RECTANGLE' && node.fills && node.fills.some(fill => fill.type === 'IMAGE')) {
-      properties.isImage = true;
-    }
-    
-    // Extract input properties if it looks like an input (common patterns in Figma)
-    if (node.name.toLowerCase().includes('input') || 
-        node.name.toLowerCase().includes('field') || 
-        node.name.toLowerCase().includes('text box')) {
-      properties.isInput = true;
-      properties.placeholder = this.findTextNodeContent(node, ['placeholder', 'hint']);
-    }
-    
-    // Look for interactive states
-    if (node.name.toLowerCase().includes('hover') || 
-        node.name.toLowerCase().includes('pressed') || 
-        node.name.toLowerCase().includes('focused')) {
-      properties.hasStates = true;
-    }
-    
-    // Check for children with specific names that indicate properties
-    if (node.children) {
-      const iconNode = node.children.find(child => 
-        child.name.toLowerCase().includes('icon') || 
-        child.type === 'VECTOR'
-      );
-      
-      if (iconNode) {
-        properties.hasIcon = true;
-        properties.iconPosition = this.determineIconPosition(node, iconNode);
-      }
-      
-      // Look for label
-      const labelNode = node.children.find(child => 
-        child.name.toLowerCase().includes('label') ||
-        (child.type === 'TEXT' && !child.name.toLowerCase().includes('placeholder'))
-      );
-      
-      if (labelNode) {
-        properties.hasLabel = true;
-        properties.label = labelNode.characters || '';
-      }
-    }
-    
-    return properties;
-  }
   
   /**
-   * Find text content in child nodes
-   * @param {Object} node - The parent node
-   * @param {Array} keywords - Keywords to look for in node names
-   * @returns {string} The text content if found
+   * Infer component type from name
+   * @param {string} name - The component name
+   * @returns {string} Inferred component type
    */
-  findTextNodeContent(node, keywords) {
-    if (!node.children) return '';
-    
-    // Find a text node that has one of the keywords in its name
-    const textNode = node.children.find(child => 
-      child.type === 'TEXT' && 
-      keywords.some(keyword => child.name.toLowerCase().includes(keyword))
-    );
-    
-    return textNode ? textNode.characters : '';
-  }
-  
-  /**
-   * Determine the position of an icon relative to its parent
-   * @param {Object} parentNode - The parent node
-   * @param {Object} iconNode - The icon node
-   * @returns {string} The position (left, right, top, bottom)
-   */
-  determineIconPosition(parentNode, iconNode) {
-    if (!parentNode.absoluteBoundingBox || !iconNode.absoluteBoundingBox) {
-      return 'unknown';
-    }
-    
-    const parent = parentNode.absoluteBoundingBox;
-    const icon = iconNode.absoluteBoundingBox;
-    
-    // Calculate center points
-    const parentCenterX = parent.x + parent.width / 2;
-    const parentCenterY = parent.y + parent.height / 2;
-    const iconCenterX = icon.x + icon.width / 2;
-    const iconCenterY = icon.y + icon.height / 2;
-    
-    // Calculate distances from center
-    const xDiff = iconCenterX - parentCenterX;
-    const yDiff = iconCenterY - parentCenterY;
-    
-    // Determine position based on distance
-    if (Math.abs(xDiff) > Math.abs(yDiff)) {
-      return xDiff > 0 ? 'right' : 'left';
-    } else {
-      return yDiff > 0 ? 'bottom' : 'top';
-    }
-  }
-  
-  /**
-   * Extract layout properties from a node
-   * @param {Object} node - The node to extract from
-   * @returns {Object} The layout properties
-   */
-  extractLayoutProperties(node) {
-    const layout = {};
-    
-    // Extract layout mode
-    if (node.layoutMode) {
-      layout.type = node.layoutMode.toLowerCase(); // HORIZONTAL or VERTICAL
-      layout.padding = {
-        top: node.paddingTop || 0,
-        right: node.paddingRight || 0,
-        bottom: node.paddingBottom || 0,
-        left: node.paddingLeft || 0
-      };
-      layout.spacing = node.itemSpacing || 0;
-    } else {
-      layout.type = 'none';
-    }
-    
-    // Extract constraints
-    if (node.constraints) {
-      layout.constraints = {
-        horizontal: node.constraints.horizontal.toLowerCase(),
-        vertical: node.constraints.vertical.toLowerCase()
-      };
-    }
-    
-    // Extract auto layout properties
-    if (node.primaryAxisAlignItems) {
-      layout.primaryAxisAlignment = node.primaryAxisAlignItems.toLowerCase();
-    }
-    if (node.counterAxisAlignItems) {
-      layout.counterAxisAlignment = node.counterAxisAlignItems.toLowerCase();
-    }
-    
-    return layout;
-  }
-  
-  /**
-   * Extract style references from a node
-   * @param {Object} node - The node to extract from
-   * @returns {Object} The style references
-   */
-  extractStyleReferences(node) {
-    const styles = {};
-    
-    if (node.styles) {
-      if (node.styles.fill) styles.fill = node.styles.fill;
-      if (node.styles.text) styles.text = node.styles.text;
-      if (node.styles.effect) styles.effect = node.styles.effect;
-      if (node.styles.stroke) styles.stroke = node.styles.stroke;
-      if (node.styles.grid) styles.grid = node.styles.grid;
-    }
-    
-    return styles;
-  }
-  
-  /**
-   * Extract variant properties from a component name
-   * @param {string} componentName - The component name
-   * @returns {Object} The variant properties
-   */
-  extractVariantProperties(componentName) {
-    // Component names in Figma often follow the pattern: "Component=Variant1, Property=Value"
-    const variantProperties = {};
-    
-    // Split the name and look for key-value pairs
-    const parts = componentName.split(',').map(part => part.trim());
-    
-    for (const part of parts) {
-      const keyValue = part.split('=').map(item => item.trim());
-      
-      if (keyValue.length === 2) {
-        const [key, value] = keyValue;
-        variantProperties[key] = value;
-      }
-    }
-    
-    return variantProperties;
-  }
-  
-  /**
-   * Extract variant properties from a component set
-   * @param {Array} components - Array of components in the set
-   * @returns {Object} The variant property definitions
-   */
-  extractComponentSetVariantProperties(components) {
-    // Collect all unique property keys and their possible values
-    const propertyMap = {};
-    
-    for (const component of components) {
-      if (component.variantProperties) {
-        for (const [key, value] of Object.entries(component.variantProperties)) {
-          if (!propertyMap[key]) {
-            propertyMap[key] = new Set();
-          }
-          propertyMap[key].add(value);
-        }
-      }
-    }
-    
-    // Convert sets to arrays
-    const result = {};
-    for (const [key, valueSet] of Object.entries(propertyMap)) {
-      result[key] = Array.from(valueSet);
-    }
-    
-    return result;
-  }
-  
-  /**
-   * Classify the component type based on name and variants
-   * @param {string} name - Component set name
-   * @param {Object} variantProperties - The variant properties
-   * @returns {string} Component type classification
-   */
-  classifyComponentType(name, variantProperties) {
-    // Get component type from name
+  inferComponentTypeFromName(name) {
     const nameLower = name.toLowerCase();
     
     if (nameLower.includes('button')) return 'button';
@@ -443,23 +238,391 @@ class ComponentExtractor {
     if (nameLower.includes('slider')) return 'slider';
     if (nameLower.includes('table')) return 'table';
     
-    // Determine from variant properties
-    if (variantProperties) {
-      const hasSize = 'Size' in variantProperties;
-      const hasVariant = 'Variant' in variantProperties;
-      const hasState = 'State' in variantProperties;
+    return 'component';
+  }
+
+  /**
+   * Extract properties from a component
+   * @param {Object} node - The component node
+   * @returns {Object} The component properties
+   */
+  extractComponentProperties(node) {
+    try {
+      const properties = {};
       
-      if (hasState && (hasVariant || hasSize)) {
-        // Components with state and variants are likely interactive
-        if (variantProperties.State.includes('Hover') || 
-            variantProperties.State.includes('Pressed') || 
-            variantProperties.State.includes('Focus')) {
-          return 'interactive';
+      // Extract text content if it's a text node
+      if (node.type === 'TEXT') {
+        properties.text = node.characters || '';
+        properties.textStyles = node.style || {};
+      }
+      
+      // Extract image properties if it's an image
+      if (node.type === 'RECTANGLE' && node.fills && node.fills.some(fill => fill.type === 'IMAGE')) {
+        properties.isImage = true;
+      }
+      
+      // Extract input properties if it looks like an input
+      if (node.name.toLowerCase().includes('input') || 
+          node.name.toLowerCase().includes('field') || 
+          node.name.toLowerCase().includes('text box')) {
+        properties.isInput = true;
+        properties.placeholder = this.findTextNodeContent(node, ['placeholder', 'hint']);
+      }
+      
+      // Look for interactive states
+      if (node.name.toLowerCase().includes('hover') || 
+          node.name.toLowerCase().includes('pressed') || 
+          node.name.toLowerCase().includes('focused')) {
+        properties.hasStates = true;
+      }
+      
+      // Check for children with specific names that indicate properties
+      if (node.children) {
+        const iconNode = node.children.find(child => 
+          child.name.toLowerCase().includes('icon') || 
+          child.type === 'VECTOR'
+        );
+        
+        if (iconNode) {
+          properties.hasIcon = true;
+          properties.iconPosition = this.determineIconPosition(node, iconNode);
+        }
+        
+        // Look for label
+        const labelNode = node.children.find(child => 
+          child.name.toLowerCase().includes('label') ||
+          (child.type === 'TEXT' && !child.name.toLowerCase().includes('placeholder'))
+        );
+        
+        if (labelNode) {
+          properties.hasLabel = true;
+          properties.label = labelNode.characters || '';
         }
       }
+      
+      return properties;
+    } catch (error) {
+      console.error('Error extracting component properties:', error);
+      return {};
     }
+  }
+  
+  /**
+   * Find text content in child nodes
+   * @param {Object} node - The parent node
+   * @param {Array} keywords - Keywords to look for in node names
+   * @returns {string} The text content if found
+   */
+  findTextNodeContent(node, keywords) {
+    if (!node.children) return '';
     
-    return 'component';
+    try {
+      // Find a text node that has one of the keywords in its name
+      const textNode = node.children.find(child => 
+        child.type === 'TEXT' && 
+        keywords.some(keyword => child.name.toLowerCase().includes(keyword))
+      );
+      
+      return textNode ? textNode.characters : '';
+    } catch (error) {
+      console.error('Error finding text node content:', error);
+      return '';
+    }
+  }
+  
+  /**
+   * Determine the position of an icon relative to its parent
+   * @param {Object} parentNode - The parent node
+   * @param {Object} iconNode - The icon node
+   * @returns {string} The position (left, right, top, bottom)
+   */
+  determineIconPosition(parentNode, iconNode) {
+    try {
+      if (!parentNode.absoluteBoundingBox || !iconNode.absoluteBoundingBox) {
+        return 'unknown';
+      }
+      
+      const parent = parentNode.absoluteBoundingBox;
+      const icon = iconNode.absoluteBoundingBox;
+      
+      // Calculate center points
+      const parentCenterX = parent.x + parent.width / 2;
+      const parentCenterY = parent.y + parent.height / 2;
+      const iconCenterX = icon.x + icon.width / 2;
+      const iconCenterY = icon.y + icon.height / 2;
+      
+      // Calculate distances from center
+      const xDiff = iconCenterX - parentCenterX;
+      const yDiff = iconCenterY - parentCenterY;
+      
+      // Determine position based on distance
+      if (Math.abs(xDiff) > Math.abs(yDiff)) {
+        return xDiff > 0 ? 'right' : 'left';
+      } else {
+        return yDiff > 0 ? 'bottom' : 'top';
+      }
+    } catch (error) {
+      console.error('Error determining icon position:', error);
+      return 'unknown';
+    }
+  }
+  
+  /**
+   * Extract layout properties from a node
+   * @param {Object} node - The node to extract from
+   * @returns {Object} The layout properties
+   */
+  extractLayoutProperties(node) {
+    try {
+      const layout = {};
+      
+      // Extract layout mode
+      if (node.layoutMode) {
+        layout.type = node.layoutMode.toLowerCase(); // HORIZONTAL or VERTICAL
+        layout.padding = {
+          top: node.paddingTop || 0,
+          right: node.paddingRight || 0,
+          bottom: node.paddingBottom || 0,
+          left: node.paddingLeft || 0
+        };
+        layout.spacing = node.itemSpacing || 0;
+      } else {
+        layout.type = 'none';
+      }
+      
+      // Extract constraints
+      if (node.constraints) {
+        layout.constraints = {
+          horizontal: node.constraints.horizontal.toLowerCase(),
+          vertical: node.constraints.vertical.toLowerCase()
+        };
+      }
+      
+      // Extract auto layout properties
+      if (node.primaryAxisAlignItems) {
+        layout.primaryAxisAlignment = node.primaryAxisAlignItems.toLowerCase();
+      }
+      if (node.counterAxisAlignItems) {
+        layout.counterAxisAlignment = node.counterAxisAlignItems.toLowerCase();
+      }
+      
+      return layout;
+    } catch (error) {
+      console.error('Error extracting layout properties:', error);
+      return { type: 'none' };
+    }
+  }
+  
+  /**
+   * Extract style references from a node
+   * @param {Object} node - The node to extract from
+   * @returns {Object} The style references
+   */
+  extractStyleReferences(node) {
+    try {
+      const styles = {};
+      
+      if (node.styles) {
+        if (node.styles.fill) styles.fill = node.styles.fill;
+        if (node.styles.text) styles.text = node.styles.text;
+        if (node.styles.effect) styles.effect = node.styles.effect;
+        if (node.styles.stroke) styles.stroke = node.styles.stroke;
+        if (node.styles.grid) styles.grid = node.styles.grid;
+      }
+      
+      return styles;
+    } catch (error) {
+      console.error('Error extracting style references:', error);
+      return {};
+    }
+  }
+  
+  /**
+   * Extract variant properties from a component name
+   * @param {string} componentName - The component name
+   * @returns {Object} The variant properties
+   */
+  extractVariantProperties(componentName) {
+    try {
+      const variantProperties = {};
+      
+      // Try different naming patterns
+      
+      // Pattern 1: "Component=Value, Property=Value"
+      if (componentName.includes(',') && componentName.includes('=')) {
+        const parts = componentName.split(',').map(part => part.trim());
+        
+        for (const part of parts) {
+          const keyValue = part.split('=').map(item => item.trim());
+          
+          if (keyValue.length === 2) {
+            const [key, value] = keyValue;
+            variantProperties[key] = value;
+          }
+        }
+        return variantProperties;
+      }
+      
+      // Pattern 2: "Component/Property=Value/Property=Value"
+      if (componentName.includes('/') && componentName.includes('=')) {
+        const parts = componentName.split('/').map(part => part.trim());
+        
+        // Skip the first part as it's usually the base component name
+        for (let i = 1; i < parts.length; i++) {
+          const part = parts[i];
+          if (part.includes('=')) {
+            const keyValue = part.split('=').map(item => item.trim());
+            
+            if (keyValue.length === 2) {
+              const [key, value] = keyValue;
+              variantProperties[key] = value;
+            }
+          }
+        }
+        return variantProperties;
+      }
+      
+      // Pattern 3: Material Design style - "Button/Filled/Small"
+      if (componentName.includes('/') && !componentName.includes('=')) {
+        const parts = componentName.split('/').map(part => part.trim());
+        
+        if (parts.length >= 2) {
+          // First part is typically the component type
+          // Second part is usually the variant
+          if (parts.length >= 2) variantProperties['Variant'] = parts[1];
+          
+          // Third part is often size or other property
+          if (parts.length >= 3) {
+            const thirdPart = parts[2].toLowerCase();
+            
+            if (thirdPart.includes('small') || thirdPart.includes('large') || 
+                thirdPart.includes('medium') || thirdPart.includes('xl')) {
+              variantProperties['Size'] = parts[2];
+            } else {
+              variantProperties['State'] = parts[2];
+            }
+          }
+          
+          // Fourth part and beyond are usually states or other properties
+          if (parts.length >= 4) {
+            variantProperties['State'] = parts[3];
+          }
+        }
+        return variantProperties;
+      }
+      
+      // Pattern 4: Material 3 style - "Button: primary--large--disabled"
+      if (componentName.includes(':')) {
+        const baseName = componentName.split(':')[0].trim();
+        const variants = componentName.split(':')[1].trim();
+        
+        if (variants.includes('--')) {
+          const variantParts = variants.split('--').map(p => p.trim());
+          
+          if (variantParts.length > 0) {
+            variantProperties['Variant'] = variantParts[0];
+            
+            if (variantParts.length > 1) {
+              variantProperties['Size'] = variantParts[1];
+            }
+            
+            if (variantParts.length > 2) {
+              variantProperties['State'] = variantParts[2];
+            }
+          }
+          return variantProperties;
+        }
+      }
+      
+      return variantProperties;
+    } catch (error) {
+      console.error('Error extracting variant properties:', error);
+      return {};
+    }
+  }
+  
+  /**
+   * Extract variant properties from a component set
+   * @param {Array} components - Array of components in the set
+   * @returns {Object} The variant property definitions
+   */
+  extractComponentSetVariantProperties(components) {
+    try {
+      // Collect all unique property keys and their possible values
+      const propertyMap = {};
+      
+      for (const component of components) {
+        if (component.variantProperties) {
+          for (const [key, value] of Object.entries(component.variantProperties)) {
+            if (!propertyMap[key]) {
+              propertyMap[key] = new Set();
+            }
+            propertyMap[key].add(value);
+          }
+        }
+      }
+      
+      // Convert sets to arrays
+      const result = {};
+      for (const [key, valueSet] of Object.entries(propertyMap)) {
+        result[key] = Array.from(valueSet);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error extracting component set variant properties:', error);
+      return {};
+    }
+  }
+  
+  /**
+   * Classify the component type based on name and variants
+   * @param {string} name - Component set name
+   * @param {Object} variantProperties - The variant properties
+   * @returns {string} Component type classification
+   */
+  classifyComponentType(name, variantProperties) {
+    try {
+      // First check the base name
+      const baseType = this.inferComponentTypeFromName(name);
+      if (baseType !== 'component') {
+        return baseType;
+      }
+      
+      // Then check variant properties for clues
+      if (variantProperties && Object.keys(variantProperties).length > 0) {
+        // Check for interactive components
+        if (variantProperties.State) {
+          const states = Array.isArray(variantProperties.State) 
+            ? variantProperties.State 
+            : [variantProperties.State];
+            
+          const interactiveStates = ['hover', 'focus', 'active', 'pressed', 'disabled'];
+          
+          for (const state of states) {
+            if (state && interactiveStates.some(s => 
+                state.toLowerCase().includes(s))) {
+              return 'interactive';
+            }
+          }
+        }
+        
+        // Check for input components
+        if (variantProperties.Type && Array.isArray(variantProperties.Type)) {
+          const types = variantProperties.Type;
+          if (types.some(t => 
+              t.toLowerCase().includes('input') || 
+              t.toLowerCase().includes('field'))) {
+            return 'input';
+          }
+        }
+      }
+      
+      return 'component';
+    } catch (error) {
+      console.error('Error classifying component type:', error);
+      return 'component';
+    }
   }
 }
 
