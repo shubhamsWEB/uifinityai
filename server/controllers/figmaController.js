@@ -1,3 +1,4 @@
+// server/controllers/figmaController.js
 const asyncHandler = require('../utils/asyncHandler');
 const { 
   figmaApiService, 
@@ -25,7 +26,18 @@ const extractDesignSystem = asyncHandler(async (req, res) => {
   
   // Validate API is initialized
   if (!figmaApiService.apiClient) {
-    throw new Error('Figma API not initialized. Call initializeFigmaApi() first.');
+    // Try to get the user's token from the database
+    const user = await User.findById(req.user.id).select('+figmaTokens.personalAccessToken');
+    
+    if (!user || !user.figmaTokens || !user.figmaTokens.personalAccessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Figma API not initialized. Please provide your Figma token first.'
+      });
+    }
+    
+    // Initialize the API with the user's token
+    initializeFigmaApi(user.figmaTokens.personalAccessToken);
   }
   
   // Get file information
@@ -108,7 +120,18 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
   
   // Validate API is initialized
   if (!figmaApiService.apiClient) {
-    throw new Error('Figma API not initialized. Call initializeFigmaApi() first.');
+    // Try to get the user's token from the database
+    const user = await User.findById(req.user.id).select('+figmaTokens.personalAccessToken');
+    
+    if (!user || !user.figmaTokens || !user.figmaTokens.personalAccessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Figma API not initialized. Please provide your Figma token first.'
+      });
+    }
+    
+    // Initialize the API with the user's token
+    initializeFigmaApi(user.figmaTokens.personalAccessToken);
   }
   
   // Get file information

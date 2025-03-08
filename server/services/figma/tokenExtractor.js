@@ -1,4 +1,4 @@
-// lib/figma/tokenExtractor.js
+// server/services/figma/tokenExtractor.js
 const tinycolor = require('tinycolor2');
 const figmaApiService = require('./apiService');
 
@@ -12,19 +12,20 @@ class DesignTokenExtractor {
     try {
       console.log('Starting design token extraction from file:', fileKey);
       
-      // Get file data with styles
+      // Get file data 
       const fileData = await figmaApiService.getFile(fileKey);
       console.log('File data retrieved:', fileData.name);
       
-      // Check if styles property exists before accessing it
-      const styles = fileData.styles || {};
+      // Get styles metadata using the dedicated endpoint
+      const stylesData = await figmaApiService.getFileStyles(fileKey);
+      console.log('Styles data retrieved:', stylesData.styles?.length || 0, 'styles found');
       
       // Extract different token types
-      const colorTokens = await this.extractColorTokens(fileKey, fileData, styles);
-      const typographyTokens = await this.extractTypographyTokens(fileKey, fileData, styles);
+      const colorTokens = await this.extractColorTokens(fileKey, fileData, stylesData);
+      const typographyTokens = await this.extractTypographyTokens(fileKey, fileData, stylesData);
       const spacingTokens = await this.extractSpacingTokens(fileKey, fileData);
-      const shadowTokens = await this.extractShadowTokens(fileKey, fileData, styles);
-      const borderTokens = await this.extractBorderTokens(fileKey, fileData, styles);
+      const shadowTokens = await this.extractShadowTokens(fileKey, fileData, stylesData);
+      const borderTokens = await this.extractBorderTokens(fileKey, fileData, stylesData);
       
       // Log results
       console.log('Extracted tokens:', {
@@ -67,8 +68,13 @@ class DesignTokenExtractor {
     console.log('Extracting color tokens...');
     const colorTokens = {};
     
+    if (!stylesData.styles || stylesData.styles.length === 0) {
+      console.log('No styles found in stylesData, falling back to document scan');
+      return this.extractColorsFromDocument(fileData.document);
+    }
+    
     // Filter color styles (FILL type)
-    const colorStyles = stylesData.meta.styles.filter(style => 
+    const colorStyles = stylesData.styles.filter(style => 
       style.style_type === 'FILL'
     );
     console.log('Found color styles:', colorStyles.length);
@@ -231,8 +237,13 @@ class DesignTokenExtractor {
     console.log('Extracting typography tokens...');
     const typographyTokens = {};
     
+    if (!stylesData.styles || stylesData.styles.length === 0) {
+      console.log('No styles found in stylesData, falling back to document scan');
+      return this.extractTypographyFromDocument(fileData.document);
+    }
+    
     // Filter typography styles (TEXT type)
-    const textStyles = stylesData.meta.styles.filter(style => 
+    const textStyles = stylesData.styles.filter(style => 
       style.style_type === 'TEXT'
     );
     console.log('Found text styles:', textStyles.length);
@@ -487,8 +498,13 @@ class DesignTokenExtractor {
     console.log('Extracting shadow tokens...');
     const shadowTokens = {};
     
+    if (!stylesData.styles || stylesData.styles.length === 0) {
+      console.log('No styles found in stylesData, falling back to document scan');
+      return this.extractShadowsFromDocument(fileData.document);
+    }
+    
     // Filter shadow styles (EFFECT type)
-    const effectStyles = stylesData.meta.styles.filter(style => 
+    const effectStyles = stylesData.styles.filter(style => 
       style.style_type === 'EFFECT'
     );
     console.log('Found effect styles:', effectStyles.length);
@@ -653,8 +669,13 @@ class DesignTokenExtractor {
     console.log('Extracting border tokens...');
     const borderTokens = {};
     
+    if (!stylesData.styles || stylesData.styles.length === 0) {
+      console.log('No styles found in stylesData, falling back to document scan');
+      return this.extractBordersFromDocument(fileData.document);
+    }
+    
     // Filter border styles (STROKE type)
-    const strokeStyles = stylesData.meta.styles.filter(style => 
+    const strokeStyles = stylesData.styles.filter(style => 
       style.style_type === 'STROKE' || style.style_type === 'GRID'
     );
     console.log('Found stroke styles:', strokeStyles.length);

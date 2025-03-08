@@ -1,3 +1,4 @@
+// server/services/figma/apiService.js
 const axios = require('axios');
 const figmaConfig = require('../../config/figma');
 
@@ -76,21 +77,40 @@ class FigmaApiService {
   async getFileStyles(fileKey) {
     this.validateClient();
     try {
+      // Get styles metadata first
       const response = await this.apiClient.get(`/files/${fileKey}/styles`);
-      const styles = response.data.meta.styles;
       
-      // Extract all style keys (IDs)
-      const styleIds = styles.map(style => style.node_id);
-      const nodesResponse = await this.getNodes(fileKey, styleIds);
+      // If there are styles, we'll collect them and their nodes
+      if (response.data && response.data.meta && response.data.meta.styles) {
+        const styles = response.data.meta.styles;
+        
+        // Extract all style IDs (node_ids)
+        const styleIds = styles.map(style => style.node_id);
+        
+        // Only proceed if we have style IDs
+        if (styleIds.length > 0) {
+          // Get node data for each style
+          const nodesResponse = await this.getNodes(fileKey, styleIds);
+          
+          // Return the combined data
+          return {
+            styles,
+            nodes: nodesResponse.nodes
+          };
+        }
+      }
       
+      // Return minimal structure if no styles are found
       return {
-        styles,
-        nodes: nodesResponse.nodes
+        styles: []
       };
       
     } catch (error) {
       console.error('Error fetching Figma styles:', error);
-      throw error;
+      // Return empty result instead of throwing
+      return {
+        styles: []
+      };
     }
   }
 
@@ -283,10 +303,6 @@ class FigmaApiService {
       throw error;
     }
   }
-
-
 }
-
-
 
 module.exports = new FigmaApiService();
