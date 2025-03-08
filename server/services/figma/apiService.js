@@ -109,7 +109,6 @@ class FigmaApiService {
       console.log(`Fetching components for file: ${fileKey}`);
       const response = await this.apiClient.get(`/files/${fileKey}`);
       console.log(`Retrieved ${response?.data?.components?.length || 0} components`);
-      console.log("🚀 ~ FigmaApiService ~ getFileComponents ~ response:", Object.keys(response?.data));
       // log and store the response in temp file for debugging      
       // Ensure we have the expected structure
       if (!response?.data?.components) {
@@ -203,8 +202,6 @@ class FigmaApiService {
         const nodeIdsParam = nodeIds.join(',');
         const response = await this.apiClient.get(`/files/${fileKey}/nodes?ids=${nodeIdsParam}`);
         console.log(`Retrieved ${Object.keys(response.data.nodes || {}).length} nodes`);
-        console.log("🚀 ~ FigmaApiService ~ getNodes ~ response:", Object.keys(response?.data));
-        console.log("🚀 ~ FigmaApiService ~ getNodes ~ response:", Object.keys(response?.data?.nodes));
         
         // Ensure we have the expected structure
         if (!response.data.nodes) {

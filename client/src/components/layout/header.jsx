@@ -31,7 +31,7 @@ export function Header() {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'Design Systems', href: '/design-systems' },
-    { name: 'Documentation', href: '/docs' },
+    // { name: 'Documentation', href: '/docs' },
   ];
   
   const isActive = (path) => pathname === path;

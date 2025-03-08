@@ -220,6 +220,7 @@ const extractAndSaveDesignSystem = asyncHandler(async (req, res) => {
     let componentData = { components: {}, componentSets: {}, componentPreviews: {} };
     try {
       componentData = await componentExtractor.extractComponents(fileKey);
+      console.log("🚀 ~ extractAndSaveDesignSystem ~ componentData:", componentData?.componentPreviews);
     } catch (componentError) {
       console.error('Error extracting components:', componentError);
       // Continue with empty components instead of failing the whole process

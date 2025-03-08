@@ -27,6 +27,11 @@ class DesignSystemStore {
         existingDS.version = this.incrementVersion(existingDS.version);
         existingDS.updatedAt = new Date();
         
+        // Store component previews
+        if (designSystem.componentPreviews) {
+          existingDS.componentPreviews = designSystem.componentPreviews;
+        }
+        
         // Save updated components
         await this.updateComponents(existingDS, designSystem.components, designSystem.componentSets);
         
@@ -42,6 +47,7 @@ class DesignSystemStore {
           organizationId,
           tokens: designSystem.tokens,
           componentSets: designSystem.componentSets,
+          componentPreviews: designSystem.componentPreviews || {},
           version: '1.0.0',
         });
         
@@ -202,6 +208,16 @@ class DesignSystemStore {
       
       exportData.components = componentsMap;
       
+      // Ensure component previews are included
+      // If componentPreviews is a Map, convert it to a plain object
+      if (exportData.componentPreviews instanceof Map) {
+        const previewsObj = {};
+        for (const [key, value] of exportData.componentPreviews.entries()) {
+          previewsObj[key] = value;
+        }
+        exportData.componentPreviews = previewsObj;
+      }
+      
       return exportData;
     } catch (error) {
       console.error('Error exporting design system:', error);
@@ -230,6 +246,11 @@ class DesignSystemStore {
         createdAt: new Date(),
         updatedAt: new Date()
       };
+      
+      // Ensure componentPreviews is included
+      if (!importData.componentPreviews) {
+        importData.componentPreviews = {};
+      }
       
       // Save to database
       return await this.saveDesignSystem(importData, userId, organizationId);

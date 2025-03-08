@@ -13,7 +13,6 @@ export async function handleApiResponse(response) {
       throw error;
     }
     
-    console.log("🚀 ~ handleApiResponse ~ data:", data);
     return data;
   }
   
