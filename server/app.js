@@ -14,6 +14,7 @@ const figmaRoutes = require('./routes/figmaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
+const aiRoutes = require('./routes/aiRoutes');
 
 // Connect to database
 connectDB();
@@ -54,6 +55,7 @@ app.use('/api/figma', figmaRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

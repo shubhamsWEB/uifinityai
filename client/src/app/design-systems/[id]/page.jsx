@@ -8,7 +8,8 @@ import {
   ChevronLeft, 
   Loader2, 
   Download, 
-  Trash
+  Trash,
+  Wand2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
@@ -123,6 +124,14 @@ export default function DesignSystemDetailsPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export
+          </Button>
+          <Button 
+            onClick={() => router.push(`/design-systems/${id}/generate`)}
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
+            disabled={loading || !designSystem}
+          >
+            <Wand2 className="h-4 w-4 mr-2" />
+            Generate UI
           </Button>
           <Dialog>
             <DialogTrigger asChild>

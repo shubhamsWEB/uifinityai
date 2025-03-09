@@ -2,21 +2,21 @@
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Eye, Download, Trash } from 'lucide-react';
+import { Eye, Download, Trash,Wand2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils/format-utils';
 
-export function DesignSystemCard({ 
-  designSystem, 
-  onView, 
-  onExport, 
+export function DesignSystemCard({
+  designSystem,
+  onView,
+  onExport,
   onDelete,
   isActive = false
 }) {
   const { name, description, createdAt, tokens = {}, components = [] } = designSystem;
-  
+
   const colorCount = tokens.colors ? Object.keys(tokens.colors).length : 0;
   const componentCount = components.length || 0;
-  
+
   return (
     <Card className={`overflow-hidden ${isActive ? 'border-blue-500 border-2' : ''}`}>
       <CardHeader className="pb-3">
@@ -63,6 +63,10 @@ export function DesignSystemCard({
         <Button variant="outline" size="sm" onClick={onView}>
           <Eye className="h-4 w-4 mr-1" />
           View
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => window.location.href = `/design-systems/${designSystem._id}/generate`}>
+          <Wand2 className="h-4 w-4 mr-1" />
+          Gen UI
         </Button>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={onExport}>

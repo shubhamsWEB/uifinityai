@@ -31,6 +31,7 @@ export function Header() {
   const navigation = [
     { name: 'Home', href: '/' },
     { name: 'Design Systems', href: '/design-systems' },
+    { name: 'Generated UIs', href: '/generated-ui' },
     // { name: 'Documentation', href: '/docs' },
   ];
   
