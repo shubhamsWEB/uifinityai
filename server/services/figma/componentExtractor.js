@@ -157,7 +157,6 @@ class ComponentExtractor {
       console.log(`- ${Object.keys(componentSets).length} component sets`);
       console.log(`- ${Object.keys(componentPreviews).length} component previews`);
       
-      console.log("🚀 ~ ComponentExtractor ~ extractComponents ~ componentPreviews:", componentPreviews);
       return {
         components,
         componentSets,

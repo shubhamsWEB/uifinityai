@@ -69,11 +69,6 @@ const DesignSystemSchema = new mongoose.Schema({
   updatedAt: { 
     type: Date, 
     default: Date.now 
-  },
-  componentPreviews: { 
-    type: Map, 
-    of: String, 
-    default: {} 
   }
 }, { 
   minimize: false 

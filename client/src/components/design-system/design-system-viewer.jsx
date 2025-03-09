@@ -12,7 +12,7 @@ import {
   ShadowTokenDisplay,
   BorderTokenDisplay,
   ComponentDisplay
-} from '@/components/design-system/token-displays';
+} from '@/components/design-system/token-display';
 
 export function DesignSystemViewer({ designSystem }) {
   const [activeTab, setActiveTab] = useState('colors');
