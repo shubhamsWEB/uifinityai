@@ -330,6 +330,13 @@ export default function DesignSystemPage() {
                           >
                             Delete
                           </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/design-systems/${activeDesignSystem._id}/generate-design`)}
+                          >
+                            Generate Design
+                          </Button>
                           {/* <Button
                             variant="outline"
                             onClick={() => setShowUploader(true)}
