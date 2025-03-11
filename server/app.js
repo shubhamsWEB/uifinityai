@@ -14,6 +14,8 @@ const figmaRoutes = require('./routes/figmaRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const organizationRoutes = require('./routes/organizationRoutes');
+// const aiRoutes = require('./routes/aiRoutes');
+const designRoutes = require('./routes/designRoutes'); // Add this line
 
 // Connect to database
 connectDB();
@@ -31,7 +33,23 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "img-src": ["'self'", "data:", "blob:"],
+      "default-src": ["'self'"],
+      "base-uri": ["'self'"],
+      "font-src": ["'self'", "https:", "data:"],
+      "frame-ancestors": ["'self'"],
+      "img-src": ["'self'", "data:"],
+      "object-src": ["'none'"],
+      "script-src": ["'self'"],
+      "script-src-attr": ["'none'"],
+      "style-src": ["'self'", "https:", "'unsafe-inline'"],
+    },
+  },
+}));
 app.use(xss());
 app.use(mongoSanitize());
 app.use(hpp());
@@ -54,6 +72,8 @@ app.use('/api/figma', figmaRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/organizations', organizationRoutes);
+// app.use('/api/ai', aiRoutes);
+app.use('/api/designs', designRoutes); // Add this line
 
 // Health check endpoint
 app.get('/health', (req, res) => {
