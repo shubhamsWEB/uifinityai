@@ -41,22 +41,22 @@ export default function HomePage() {
         style={gradientStyle}
       >
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-6 text-white">
-          Generate UI from <span className="text-blue-200">Figma</span> with AI
+          Generate UI from <span style={{background: 'linear-gradient(90deg, #ff9a9e, #fad0c4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>Figma</span> with AI
         </h1>
         <p className="text-xl text-white/90 max-w-2xl mb-8">
           Upload your Figma design system, describe what you want to build, and let AI generate pixel-perfect React components that match your design.
         </p>
         <div className="flex flex-col sm:flex-row gap-4">
-          <Button size="lg" asChild>
-            <Link href="/design-system">
+          <Button size="lg" asChild className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg">
+            <Link href="/design-systems">
               Get Started <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
           </Button>
-          <Button size="lg" variant="outline" asChild>
+          {/* <Button size="lg" variant="outline" asChild className="border-white text-white hover:bg-white/10">
             <a href="https://github.com/your-repo" target="_blank" rel="noopener noreferrer">
               View on GitHub
             </a>
-          </Button>
+          </Button> */}
         </div>
       </section>
 
@@ -150,7 +150,7 @@ export default function HomePage() {
           <p className="text-xl mb-8 opacity-90">
             Start generating UI components from your design system today.
           </p>
-          <Button size="lg" variant="secondary" asChild>
+          <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 font-semibold shadow-lg" asChild>
             <Link href="/design-system">
               Get Started <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
